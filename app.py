@@ -2,18 +2,66 @@ import os
 import time
 from random import random
 from twython import Twython
+import requests
+import json
+import io
+import pyrebase
 
-CONSUMER_KEY = os.environ['TWITTER_CONSUMER_KEY']
-CONSUMER_SECRET = os.environ['TWITTER_CONSUMER_SECRET']
-OAUTH_TOKEN = os.environ['TWITTER_OAUTH_TOKEN']
-OAUTH_TOKEN_SECRET = os.environ['TWITTER_OAUTH_TOKEN_SECRET']
+firebase_config = {
+    "apiKey": "AIzaSyA8M7RXx3RnkLaJQhy4sZE0RSJNKmYwCS4",
+    "authDomain": "ggwp-bot.firebaseapp.com",
+    "databaseURL": "https://ggwp-bot.firebaseio.com",
+    "projectId": "ggwp-bot",
+    "storageBucket": "ggwp-bot.appspot.com",
+    "messagingSenderId": "370545509231"
+  };
+
+firebase = pyrebase.initialize_app(firebase_config)
+
+api_url = "https://wisdomapi.herokuapp.com/v1/random"
+
+CONSUMER_KEY = '9SWxD9ffrdvUK1mGcKYmS2BeB'
+CONSUMER_SECRET = 'nA3SVwVS6syOiBLkxjIBaMS0IjCK1qMbnxcAZc1AxOjrT7PImd'
+OAUTH_TOKEN = '44887381-GJopNAb1epAys1sfk30N6GmWSDpfOXm5dd3Zr7zi7'
+OAUTH_TOKEN_SECRET = 'GTnrK8zAwQC4s8nUVErYDAYoqo4w5AJsO1hyBo0VUjS1K'
 TWEET_LENGTH = 140
 TWEET_URL_LENGTH = 21
 
-RUN_EVERY_N_SECONDS = 60*5 # e.g. 60*5 = tweets every five minutes
+RUN_EVERY_N_SECONDS = 60*30 # e.g. 60*5 = tweets every five minutes
 
 USERS_TO_IGNORE = []
 DO_NOT_FAVORITE_USERS_AGAIN = True
+
+def get_startupquote():
+    req = requests.get(api_url)
+    content = req.text
+
+    data = json.loads(content)
+
+    quote = data['content']
+    picture_url = data['picture_url']
+
+    print("content : " + data['content'])
+    print("picture_url : " + data['picture_url'])
+    print("Author : " + data['author']['name'])
+
+    print("Reached 1nd Get END")
+
+    print("Reached 2nd Get")
+
+    filename = 'temp.jpg'
+    print("Pic URL : " + str(picture_url))
+    request = requests.get(picture_url, stream=True)
+    if request.status_code == 200:
+        with open(filename, 'wb') as image:
+            for chunk in request:
+                image.write(chunk)
+    else:
+        print("Unable to download image")
+
+    print("Reached 2nd Get")
+
+    return(quote, picture_url)
 
 def twitter_handle():
     return Twython(CONSUMER_KEY, CONSUMER_SECRET, OAUTH_TOKEN, OAUTH_TOKEN_SECRET)
@@ -36,7 +84,7 @@ def random_favoriting(keywords, handle, favorite_probability=0.2):
             ts = [x for x in ts if x['user']['id'] not in USERS_TO_IGNORE]
         if ts:
             if random() < favorite_probability: 
-                print 'Favoriting: ' + ts[0]['text']
+                print ('Favoriting: ' + ts[0]['text'])
                 favorite_tweet(ts[0], handle)
                 if DO_NOT_FAVORITE_USERS_AGAIN:
                     USERS_TO_IGNORE.append(ts[0]['user']['id'])
@@ -108,14 +156,41 @@ def get_message(handle):
     assert len(message) <= TWEET_LENGTH
     return message
 
+def get_pun(count):
+    db = firebase.database()
+
+    data = db.child("getData").child('puns').child('data').get()
+    puns = data.val()
+
+    print("Returned : " + puns[count])
+
+    return(puns[count])
+
+count = 1
+
 def main():
     handle = twitter_handle()
     USERS_TO_IGNORE.extend([x['user']['id'] for x in handle.get_favorites()])
+
     while True:
-        message = get_message(handle)
-        print message
-        submit_tweet(message, handle)
+        # message = get_message(handle)
+        # print message
+        # submit_tweet(message, handle)
         # random_favoriting(['apples', 'oranges'], handle)
+
+        # quote, picture_url = get_startupquote()
+
+        # submit_tweet_with_media(quote, 'temp.jpg')
+
+        #Get Pun from Firebase and tweet it 
+        pun = get_pun(count)
+
+        print("Tweet data : " + pun)
+
+        submit_tweet(pun)
+
+        count = count + 1
+
         time.sleep(RUN_EVERY_N_SECONDS)
 
 if __name__ == '__main__':
